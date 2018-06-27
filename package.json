@@ -1,0 +1,27 @@
+{
+  "name": "random-access-contract",
+  "version": "1.0.0",
+  "description": "Random access storage in an Ethereum contract",
+  "main": "index.js",
+  "scripts": {
+    "test": ":"
+  },
+  "keywords": [
+    "random",
+    "access",
+    "contract",
+    "ethereum"
+  ],
+  "author": "Joseph Werle <werle@littlstar.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "hyperdrive": "^9.14.0",
+    "random-access-memory": "^3.0.0",
+    "web3": "^1.0.0-beta.34"
+  },
+  "dependencies": {
+    "buffer-from": "^1.1.0",
+    "is-buffer": "^2.0.3",
+    "random-access-storage": "^1.3.0"
+  }
+}
