@@ -27,7 +27,7 @@ function RandomAccessContract(opts) {
       "RandomAccessContract: Expecting pointer to be a buffer.")
   }
 
-  const { contract, account, pointer } = opts
+  const { contract, account, pointer, hash } = opts
   const { methods } = contract
 
   if (null == methods || 'object' != typeof methods) {
@@ -35,20 +35,9 @@ function RandomAccessContract(opts) {
       "RandomAccessContract: Expecting contract methods to be an object.")
   }
 
-  const self = storage({
-    //open,
-    read,
-    write,
-    //del,
-    //stat,
-    //close,
-    //destroy,
-  })
-  return self
+  const self = storage({ read, write, del, stat })
 
-  function open(req) {
-    req.callback(null)
-  }
+  return self
 
   function read(req) {
     const { offset, size } = req
@@ -57,7 +46,7 @@ function RandomAccessContract(opts) {
         "RandomAccessContract: Expecting read contract method."))
     }
 
-    methods
+    return methods
       .read(ethify(pointer), offset, size)
       .call(onread)
 
@@ -69,7 +58,7 @@ function RandomAccessContract(opts) {
 
   function write(req) {
     const { data, offset } = req
-    const tx = { receipt: null, confirmations: 0 }
+    const tx = transaction()
 
     if ('function' != typeof methods.write) {
       return req.callback(new TypeError(
@@ -77,20 +66,35 @@ function RandomAccessContract(opts) {
     }
 
     return methods
-      .write(ethify(pointer), ethify(data), offset, data.length)
-      .send({gas: 2000000, value: 0}, onwrite)
-      .on('error', onerror)
-      .on('receipt', onreceipt)
-      .on('confirmation', onconfirmation)
+      .read(ethify(pointer), offset, data.length)
+      .call(onread)
 
-    function onerror(err) {
-      self.emit('error', err)
-      req.callback(err)
+    function onread(err, res) {
+      if (!err && res) {
+        if (0 == Buffer.compare(data, fromHex(res))) {
+          //return onreadhit()
+        }
+      }
+
+      return onreadmiss()
+    }
+
+    function onreadhit() {
+      console.log('hit');
+      return onwrite(null)
+    }
+
+    function onreadmiss() {
+      console.log(ethify(pointer), ethify(data), offset, data.length);
+      return methods
+        .write(ethify(pointer), ethify(data), offset, data.length)
+        .send({value: 0}, onwrite)
+        .on('receipt', onreceipt)
+        .on('confirmation', onconfirmation)
     }
 
     function onwrite(err) {
-      if (err) { return req.callback(err) }
-      req.callback(null)
+      return req.callback(err)
     }
 
     function onreceipt(receipt) {
@@ -104,20 +108,53 @@ function RandomAccessContract(opts) {
   }
 
   function del(req) {
-    // @TODO(jwerle)
+    const { size, offset } = req
+    const tx = transaction()
+
+    if ('function' != typeof methods.del) {
+      return req.callback(new TypeError(
+        "RandomAccessContract: Expecting del contract method."))
+    }
+
+    return methods
+      .del(ethify(pointer), offset, size)
+      .send({value: 0}, ondel)
+      .on('receipt', onreceipt)
+      .on('confirmation', onconfirmation)
+
+    function ondel(err) {
+      return req.callback(err)
+    }
+
+    function onreceipt(receipt) {
+      tx.receipt = receipt
+      process.nextTick(() => self.emit('transaction', tx))
+    }
+
+    function onconfirmation(confirmation, receipt) {
+      tx.confirmations ++
+    }
   }
 
   function stat(req) {
-    // @TODO(jwerle)
-  }
+    if ('function' != typeof methods.stat) {
+      return req.callback(new TypeError(
+        "RandomAccessContract: Expecting stat contract method."))
+    }
 
-  function close(req) {
-    // @TODO(jwerle)
-  }
+    return methods
+      .stat(ethify(pointer))
+      .call(onstat)
 
-  function destroy(req) {
-    // @TODO(jwerle)
+    function onstat(err, res) {
+      if (err) { return req.callback(err) }
+      req.callback(null, {size: parseInt(res) || 0})
+    }
   }
+}
+
+function transaction() {
+  return { receipt: null, confirmations: 0 }
 }
 
 function toHex(buf) {
